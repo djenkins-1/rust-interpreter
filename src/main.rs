@@ -185,7 +185,7 @@ impl Iterator for NumberChars<'_, '_> {
 }
 
 struct Lexer<'a> {
-    source: &'a str
+    source: &'a str,
     chars: std::iter::Peekable<std::str::CharIndices<'a>>,
     line: u32,
     column: u32,
@@ -202,7 +202,7 @@ impl<'a> Lexer<'a> {
             column: 1, 
         }
     }
-    
+
     fn peek(&self) -> Option<char> {
         self.chars.peek().map(|&(_, c)| c) 
     }
@@ -248,7 +248,7 @@ impl<'a> Lexer<'a> {
     }
 
     // Scanning functions
-    
+
     fn scan_char(&mut self, start: usize, line: u32, col: u32) -> ScanResult {
         self.advance(); // opening '
 
@@ -337,40 +337,40 @@ impl<'a> Lexer<'a> {
             }
         }
     }
-    
+
     // Only supports base 10 currently
     fn scan_number(&mut self, start: usize, line: u32, col: u32) -> ScanResult {
         let is_float = NumberChars::new(self)
             .fold(false, |seen_dot, event| matches!(event, NumberChar::DecimalPoint) || seen_dot);
 
-       let span = self.span_from(start, line, col);
-       let lexeme = self.slice(&span).to_owned();
+        let span = self.span_from(start, line, col);
+        let lexeme = self.slice(&span).to_owned();
 
-       let (kind, literal) = if is_float {
-           (TokenKind::Literal(LiteralKind::Float), LiteralValue::Float(lexeme.parse().expect("lexer produced invalid float")))
-       } else {
-           (TokenKind::Literal(LiteralKind::Int), LiteralValue::Int(lexeme.parse().expect("lexer produced invalid integer")))
-       };
+        let (kind, literal) = if is_float {
+            (TokenKind::Literal(LiteralKind::Float), LiteralValue::Float(lexeme.parse().expect("lexer produced invalid float")))
+        } else {
+            (TokenKind::Literal(LiteralKind::Int), LiteralValue::Int(lexeme.parse().expect("lexer produced invalid integer")))
+        };
 
-       ScanResult::ok(Token { kind, lexeme, literal: Some(literal), span })
+        ScanResult::ok(Token { kind, lexeme, literal: Some(literal), span })
     }
 
     fn scan_ident(&mut self, start: usize, line: u32, col: u32) -> ScanResult {
-       self.advance_while(is_ident_cont);
-       let span = self.span_from(start, line, col);
-       let lexeme = self.slice(&span).to_owned();
+        self.advance_while(is_ident_cont);
+        let span = self.span_from(start, line, col);
+        let lexeme = self.slice(&span).to_owned();
 
-       let (kind, literal) = match lexeme.as_str() {
-           "true" => (TokenKind::Literal(LiteralKind::Bool), Some(LiteralValue::Bool(true))),
-           "false" => (TokenKind::Literal(LiteralKind::Bool), Some(LiteralValue::Bool(false))),
-           kw if is_keyword(kw) => (TokenKind::Keyword, None),
-           _ => (TokenKind::Identifier, None),
-       };
+        let (kind, literal) = match lexeme.as_str() {
+            "true" => (TokenKind::Literal(LiteralKind::Bool), Some(LiteralValue::Bool(true))),
+            "false" => (TokenKind::Literal(LiteralKind::Bool), Some(LiteralValue::Bool(false))),
+            kw if is_keyword(kw) => (TokenKind::Keyword, None),
+            _ => (TokenKind::Identifier, None),
+        };
 
-       ScanResult::ok(Token { kind, lexeme, literal, span })
+        ScanResult::ok(Token { kind, lexeme, literal, span })
     }
 
-    fn operator_token(&mut self, start_byte: usize, line: u32, col: u32) -> Token {
+    fn scan_operator(&mut self, start_byte: usize, line: u32, col: u32) -> ScanResult {
 
     }
 
@@ -413,7 +413,7 @@ fn lex(input: &String) -> Vec<Token> {
     let chars = input.chars();
 
     let mut current = String::new();
-    
+
     for character in chars {
         if !character.is_alphanumeric() && character != '-' && character != '_' {
             tokens.push(create_token(&current));
