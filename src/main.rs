@@ -142,6 +142,48 @@ impl Iterator for StringChars<'_, '_> {
     }
 }
 
+enum NumChar {
+    Digit(char),
+    DecimalPoint,
+}
+
+struct NumberChars<'lex, 'src> {
+    lexer: &'lex mut Lexer<'src>,
+    seen_dot: bool,
+}
+
+impl<'lex, 'src> NumberChars<'lex, 'src> {
+    fn new(lexer: &'lex mut Lexer<'src>) -> Self {
+        Self { lexer, seen_dot: false }
+    }
+}
+
+impl Iterator for NumberChars<'_, '_> {
+    type Item = NumberChar;
+
+    fn next(&mut self) -> Option<NumberChar> {
+        match self.lexer.peek() {
+            Some(c) if c.is_ascii_digit() => {
+                self.lexer.advance();
+                Some(NumberChar::Digit(c))
+            }
+            // Don't consume dot speculatively - could be 3.method()
+            Some('.') if !self.seen_dot => {
+                let next_is_digit = self.lexer.chars.clone().nth(1).map_or(false, |(_, c)| c.is_ascii_digit());
+
+                if next_is_digit {
+                    self.seen_dot = true;
+                    self.lexer.advance();
+                    Some(NumberChar::DecimalPoint)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
 struct Lexer<'a> {
     source: &'a str
     chars: std::iter::Peekable<std::str::CharIndices<'a>>,
@@ -295,9 +337,22 @@ impl<'a> Lexer<'a> {
             }
         }
     }
-
+    
+    // Only supports base 10 currently
     fn scan_number(&mut self, start: usize, line: u32, col: u32) -> ScanResult {
-        
+        let is_float = NumberChars::new(self)
+            .fold(false, |seen_dot, event| matches!(event, NumberChar::DecimalPoint) || seen_dot);
+
+       let span = self.span_from(start, line, col);
+       let lexeme = self.slice(&span).to_owned();
+
+       let (kind, literal) = if is_float {
+           (TokenKind::Literal(LiteralKind::Float), LiteralValue::Float(lexeme.parse().expect("lexer produced invalid float")))
+       } else {
+           (TokenKind::Literal(LiteralKind::Int), LiteralValue::Int(lexeme.parse().expect("lexer produced invalid integer")))
+       };
+
+       ScanResult::ok(Token { kind, lexeme, literal: Some(literal), span })
     }
 
     fn scan_ident(&mut self, start: usize, line: u32, col: u32) -> ScanResult {
