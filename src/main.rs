@@ -207,7 +207,7 @@ impl<'a> Lexer<'a> {
 
     // Scanning functions
     
-    fn scan_char(&mut self, start_byte: usize, line: u32, col: u32) -> ScanResult {
+    fn scan_char(&mut self, start: usize, line: u32, col: u32) -> ScanResult {
         self.advance(); // opening '
 
         let (content, error_kind): (Option<char>, Option<LexErrorKind>) = match self.peek() {
@@ -253,7 +253,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn scan_string(&mut self, start_byte: usize, line: u32, col: u32) -> ScanResult {
+    fn scan_string(&mut self, start: usize, line: u32, col: u32) -> ScanResult {
         self.advance(); // opening "
 
         let (value, errors, terminated) = 
@@ -296,12 +296,23 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn number_token(&mut self, start_byte: usize, line: u32, col: u32) -> Token {
-
+    fn scan_number(&mut self, start: usize, line: u32, col: u32) -> ScanResult {
+        
     }
 
-    fn ident_token(&mut self, start_byte: usize, line: u32, col: u32) -> Token {
-        
+    fn scan_ident(&mut self, start: usize, line: u32, col: u32) -> ScanResult {
+       self.advance_while(is_ident_cont);
+       let span = self.span_from(start, line, col);
+       let lexeme = self.slice(&span).to_owned();
+
+       let (kind, literal) = match lexeme.as_str() {
+           "true" => (TokenKind::Literal(LiteralKind::Bool), Some(LiteralValue::Bool(true))),
+           "false" => (TokenKind::Literal(LiteralKind::Bool), Some(LiteralValue::Bool(false))),
+           kw if is_keyword(kw) => (TokenKind::Keyword, None),
+           _ => (TokenKind::Identifier, None),
+       };
+
+       ScanResult::ok(Token { kind, lexeme, literal, span })
     }
 
     fn operator_token(&mut self, start_byte: usize, line: u32, col: u32) -> Token {
@@ -310,6 +321,35 @@ impl<'a> Lexer<'a> {
 
     fn delimiter_token(&mut self, start_byte: usize, line: u32, col: u32) -> Token {
 
+    }
+}
+
+// Character helper functions
+
+fn is_ident_start(c: char) -> bool { c.is_alphabetic() || c == '_' }
+fn is_ident_cont(c: char) -> bool { c.is_alphanumeric() || c == '_' }
+fn is_operator(c: char) ->  bool { "+-*/=<>!&|^%".contains(c) }
+fn is_delimiter(c: char) -> bool { "(){}[];,:.".contains(c) }
+
+fn is_keyword(s: &str) -> bool {
+    matches!(s,
+        "fn" | "if" | "else" | "struct" | "enum" | "let" | "mut" | "return" | "loop" |
+        "while" | "for" | "in" | "match" | "use" | "pub" | "mod" | "impl" | "self" |
+        "Self" | "type" | "where"
+    )
+}
+
+// Missing certain escapes, including unicode characters (\u)
+fn unescape(c: char) -> Result<char, ()> {
+    match c {
+        'n' => Ok('\n'),
+        't' => Ok('\t'),
+        'r' => Ok('\r'),
+        '0' => Ok('\0'),
+        '\\' => Ok('\\'),
+        '"' => Ok('"'),
+        '\'' => Ok('\''),
+        _ => Err(()),
     }
 }
 
