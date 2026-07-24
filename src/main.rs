@@ -10,7 +10,16 @@ enum TokenKind {
     Delimiter,
     Identifier,
     Operator,
-    Literal,
+    Literal(LiteralKind),
+    Invalid,
+}
+
+enum LiteralKind {
+    Int,
+    Float,
+    Str,
+    Char,
+    Bool,
 }
 
 enum Operator {
@@ -51,6 +60,8 @@ enum LexErrorKind {
     OverlongCharLiteral,
     InvalidEscape(char),
     UnexpectedChar(char),
+    IntegerOverflow,
+    FloatParseError,
 }
 
 struct LexError {
@@ -126,7 +137,7 @@ impl Iterator for StringChars<'_, '_> {
             Some('"') => { self.done = true; StringChar::Closed }
             Some('\\') => match self.lexer.advance() {
                 Some(c) => match unescape(c) {
-                    Ok(u) => String::Char(u),
+                    Ok(u) => StringChar::Char(u),
                     Err(()) => {
                         let span = self.lexer.span_from(self.err_start, self.err_line, self.err_col);
                         StringChar::BadEscape(c, LexError::new(LexErrorKind::InvalidEscape(c), span))
@@ -142,7 +153,7 @@ impl Iterator for StringChars<'_, '_> {
     }
 }
 
-enum NumChar {
+enum NumberChar {
     Digit(char),
     DecimalPoint,
 }
@@ -203,11 +214,11 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn peek(&self) -> Option<char> {
+    fn peek(&mut self) -> Option<char> {
         self.chars.peek().map(|&(_, c)| c) 
     }
 
-    fn peek_offset(&self) -> Option<usize> {
+    fn peek_offset(&mut self) -> Option<usize> {
         self.chars.peek().map(|&(i, _)| i)
     }
 
@@ -235,7 +246,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn span_from(&mut self, start: usize, line: u32, column: u32) -> Span {
-        let end = self.peek_offset().unwrap_or(self.source_len());
+        let end = self.peek_offset().unwrap_or(self.source.len());
         Span { start, end, line, column }
     }
 
@@ -244,7 +255,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn at_eof(&mut self) -> bool {
-        self.cahrs.peek().is_none()
+        self.chars.peek().is_none()
     }
 
     // Scanning functions
@@ -289,7 +300,7 @@ impl<'a> Lexer<'a> {
             None => ScanResult::ok(Token {
                 kind: TokenKind::Literal(LiteralKind::Char),
                 lexeme,
-                literal: content.map(LiteralValue::Char),
+                literal: content.map(Literal::Char),
                 span,
             }),
         }
@@ -322,7 +333,7 @@ impl<'a> Lexer<'a> {
                 ScanResult::with_errors( Token {
                     kind: TokenKind::Literal(LiteralKind::Str),
                     lexeme,
-                    literal: Some(LiteralValue::Str(value)),
+                    literal: Some(Literal::Str(value)),
                     span
                 },
                 errors,)
@@ -331,7 +342,7 @@ impl<'a> Lexer<'a> {
                 ScanResult::ok(Token {
                     kind: TokenKind::Literal(LiteralKind::Str),
                     lexeme,
-                    literal: Some(LiteralValue::Str(value)),
+                    literal: Some(Literal::Str(value)),
                     span,
                 })
             }
@@ -347,9 +358,9 @@ impl<'a> Lexer<'a> {
         let lexeme = self.slice(&span).to_owned();
 
         let (kind, literal) = if is_float {
-            (TokenKind::Literal(LiteralKind::Float), LiteralValue::Float(lexeme.parse().expect("lexer produced invalid float")))
+            (TokenKind::Literal(LiteralKind::Float), Literal::Float(lexeme.parse().map_err(|_| LexErrorKind::FloatParseError)?))
         } else {
-            (TokenKind::Literal(LiteralKind::Int), LiteralValue::Int(lexeme.parse().expect("lexer produced invalid integer")))
+            (TokenKind::Literal(LiteralKind::Int), Literal::Int(lexeme.parse().map_err(|_| LexErrorKind::IntegerOverflow)?))
         };
 
         ScanResult::ok(Token { kind, lexeme, literal: Some(literal), span })
@@ -361,8 +372,8 @@ impl<'a> Lexer<'a> {
         let lexeme = self.slice(&span).to_owned();
 
         let (kind, literal) = match lexeme.as_str() {
-            "true" => (TokenKind::Literal(LiteralKind::Bool), Some(LiteralValue::Bool(true))),
-            "false" => (TokenKind::Literal(LiteralKind::Bool), Some(LiteralValue::Bool(false))),
+            "true" => (TokenKind::Literal(LiteralKind::Bool), Some(Literal::Bool(true))),
+            "false" => (TokenKind::Literal(LiteralKind::Bool), Some(Literal::Bool(false))),
             kw if is_keyword(kw) => (TokenKind::Keyword, None),
             _ => (TokenKind::Identifier, None),
         };
@@ -405,51 +416,5 @@ fn unescape(c: char) -> Result<char, ()> {
         '"' => Ok('"'),
         '\'' => Ok('\''),
         _ => Err(()),
-    }
-}
-
-fn lex(input: &String) -> Vec<Token> {
-    let mut tokens: Vec<Token> = Vec::new();
-    let chars = input.chars();
-
-    let mut current = String::new();
-
-    for character in chars {
-        if !character.is_alphanumeric() && character != '-' && character != '_' {
-            tokens.push(create_token(&current));
-            current = String::new();
-        }
-        current.push(character);
-    }
-    tokens.push(create_token(&current));
-
-    // return stream of tokens
-    tokens
-}
-
-fn create_token(lexeme: &String) -> Token {
-    // this is kinda bad
-    let operators = HashSet::from(["+", "-", "*", "/", "="]); // and more
-    let keywords = HashSet::from(["fn", "if", "struct", "enum", "let", "mut"]);
-
-    if operators.contains(lexeme) {
-
-    } else if keywords.contains(lexeme) {
-
-    }
-    ()
-}
-
-fn parse(tokens: &Vec<Token>) {
-    let mut tree: Tree<AutomatedId, &Token> = Tree::new(Some("AST")); 
-
-    for token in tokens.iter() {
-        match token.kind {
-            TokenKind::Keyword => ;
-            TokenKind::Delimiter => ;
-            TokenKind::Identifier => ;
-            TokenKind::Operator => ;
-            TokenKind::Literal => ;
-        }
     }
 }
