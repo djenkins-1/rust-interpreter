@@ -18,7 +18,10 @@
 use std::collections::HashMap;
 use std::fmt;
 
+<<<<<<< HEAD
 use crate::builtins::BUILTINS;
+=======
+>>>>>>> 6e87f172949d03206b13b1febb156c7010fa09f9
 use crate::parser::{
     BinOp, Block, ElseBranch, Expr, FunctionDecl, Item, Param, Program, Stmt, Type, UnOp,
 };
@@ -124,6 +127,7 @@ pub struct TypeChecker {
 
 impl TypeChecker {
     pub fn new() -> Self {
+<<<<<<< HEAD
         // Seed with builtin signatures so calls to e.g. `print` type-check
         // exactly like a call to any user-defined function; `register_function`
         // still catches a user program that redefines a builtin's name, since
@@ -138,6 +142,10 @@ impl TypeChecker {
 
         Self {
             functions,
+=======
+        Self {
+            functions: HashMap::new(),
+>>>>>>> 6e87f172949d03206b13b1febb156c7010fa09f9
             scopes: Vec::new(),
             current_fn_return: Type::Unit,
         }
@@ -475,7 +483,37 @@ impl Default for TypeChecker {
 #[cfg(test)]
 mod tests {
     use super::*;
+<<<<<<< HEAD
     use crate::test_util::*;
+=======
+
+    // Tiny AST-builder helpers so tests describe intent instead of drowning
+    // in Box::new()/String::from() noise.
+    fn int(n: i64) -> Expr { Expr::IntLit(n) }
+    fn boolean(b: bool) -> Expr { Expr::BoolLit(b) }
+    fn ident(n: &str) -> Expr { Expr::Ident(n.to_string()) }
+    fn bin(op: BinOp, l: Expr, r: Expr) -> Expr {
+        Expr::Binary { op, lhs: Box::new(l), rhs: Box::new(r) }
+    }
+    fn call(name: &str, args: Vec<Expr>) -> Expr {
+        Expr::Call { callee: name.to_string(), args }
+    }
+    fn block(stmts: Vec<Stmt>, tail: Option<Expr>) -> Block {
+        Block { stmts, tail: tail.map(Box::new) }
+    }
+    fn let_stmt(name: &str, mutable: bool, ty: Option<Type>, value: Expr) -> Stmt {
+        Stmt::Let { name: name.to_string(), mutable, ty, value }
+    }
+    fn param(name: &str, ty: Type) -> Param {
+        Param { name: name.to_string(), ty }
+    }
+    fn func(name: &str, params: Vec<Param>, return_type: Type, body: Block) -> FunctionDecl {
+        FunctionDecl { name: name.to_string(), params, return_type, body }
+    }
+    fn program(fns: Vec<FunctionDecl>) -> Program {
+        Program { items: fns.into_iter().map(Item::Function).collect() }
+    }
+>>>>>>> 6e87f172949d03206b13b1febb156c7010fa09f9
 
     #[test]
     fn valid_recursive_function_checks_ok() {
