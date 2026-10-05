@@ -242,7 +242,6 @@ pub enum BinOp {
 pub struct ParseError {
     pub message: String,
     pub found: Token,
-    pub pos: usize,
 }
 
 type PResult<T> = Result<T, ParseError>;
@@ -300,7 +299,6 @@ impl Parser {
         ParseError {
             message: message.to_string(),
             found: self.peek().clone(),
-            pos: self.pos,
         }
     }
 
@@ -310,7 +308,6 @@ impl Parser {
             other => Err(ParseError {
                 message: "expected identifier".into(),
                 found: other,
-                pos: self.pos,
             }),
         }
     }
@@ -381,7 +378,6 @@ impl Parser {
             other => Err(ParseError {
                 message: "expected a type (i32, bool, or ())".into(),
                 found: other,
-                pos: self.pos,
             }),
         }
     }
@@ -693,7 +689,6 @@ impl Parser {
             other => Err(ParseError {
                 message: "expected an expression".into(),
                 found: other,
-                pos: self.pos,
             }),
         }
     }

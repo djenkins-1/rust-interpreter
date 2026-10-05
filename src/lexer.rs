@@ -141,7 +141,7 @@ impl Iterator for StringChars<'_, '_> {
 }
 
 enum NumberChar {
-    Digit(char),
+    Digit,
     DecimalPoint,
 }
 
@@ -163,7 +163,7 @@ impl Iterator for NumberChars<'_, '_> {
         match self.lexer.peek() {
             Some(c) if c.is_ascii_digit() => {
                 self.lexer.advance();
-                Some(NumberChar::Digit(c))
+                Some(NumberChar::Digit)
             }
             // Don't consume dot speculatively - could be 3.method()
             Some('.') if !self.seen_dot => {
